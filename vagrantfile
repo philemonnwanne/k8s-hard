@@ -1,0 +1,51 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+Vagrant.configure("2") do |config|
+    # Define configuration for master node
+    config.vm.define :"masternode" do |master|
+        master.vm.box = "sloopstash/ubuntu-22-04"
+        master.vm.box_version = "2.1.1"
+        master.vm.network "forwarded_port", guest: 80, host: 8083
+        master.vm.hostname = "masterNode"
+        master.vm.box_check_update = false
+        master.vm.network "private_network", ip: "192.168.201.20"
+        # worker.vm.network "private_network", ip: "10.0.0.1"
+        master.vm.synced_folder ".", "/vagrant"
+        # SSH credentials to connect to virtual machine.
+        master.ssh.username = "vagrant"
+        master.ssh.private_key_path = ["~/.vagrant.d/insecure_private_key"]
+        master.ssh.insert_key = false
+    
+        # Custom vmware configuration
+        master.vm.provider :vmware_fusion do |vmf|
+            vmf.memory = "2048"
+            vmf.cpus = "2"
+        end
+        master.vm.provision "shell", path: "clustersetup-k8sv1.30.sh"
+    end
+
+    # Define configuration for worker nodes
+    (1..2).each do |i|
+        config.vm.define "workernode0#{i}" do |worker|
+            worker.vm.box = "sloopstash/ubuntu-22-04"
+            worker.vm.box_version = "2.1.1"
+            worker.vm.network "forwarded_port", guest: 80, host: "808#{i}"
+            worker.vm.hostname = "workerNode0#{i}"
+            worker.vm.box_check_update = false
+            worker.vm.network "private_network", ip: "192.168.201.2#{i}"
+            # worker.vm.network "private_network"
+            worker.vm.synced_folder ".", "/vagrant"
+            # SSH credentials to connect to virtual machine.
+            worker.ssh.username = "vagrant"
+            worker.ssh.private_key_path = ["~/.vagrant.d/insecure_private_key"]
+            worker.ssh.insert_key = false
+        
+            # Custom vmware configuration
+            worker.vm.provider :vmware_fusion do |vmf|
+                vmf.memory = "1048"
+                vmf.cpus = "1"
+            end
+            worker.vm.provision "shell", path: "clustersetup-k8sv1.30.sh"
+        end
+    end
+end
