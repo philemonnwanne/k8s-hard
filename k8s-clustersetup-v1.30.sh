@@ -23,12 +23,12 @@ sleep 4 &&\
 # Step 1: INSTALLING CONTAINERD
 echo "                         🐧 INSTALLING CONTAINERD 🐧                          "
 echo "========================                             ========================"
-sudo wget https://github.com/containerd/containerd/releases/download/v1.7.21/containerd-1.7.21-linux-arm64.tar.gz &&\
+sudo wget -c --tries=0 --read-timeout=20 https://github.com/containerd/containerd/releases/download/v1.7.21/containerd-1.7.21-linux-arm64.tar.gz &&\
 
 sudo tar Cxzvf /usr/local containerd-1.7.21-linux-arm64.tar.gz &&\
 
 # Start containerd as a systemd service
-sudo wget https://raw.githubusercontent.com/containerd/containerd/main/containerd.service -P /usr/local/lib/systemd/system &&\
+sudo wget -c --tries=0 --read-timeout=20 https://raw.githubusercontent.com/containerd/containerd/main/containerd.service -P /usr/local/lib/systemd/system &&\
 
 sudo systemctl daemon-reload &&\
 sudo systemctl enable --now containerd &&\
@@ -38,13 +38,13 @@ sleep 4 &&\
 # INSTALLING runc
 echo "                             🐧 INSTALLING RUNC 🐧                            "
 echo "========================                             ========================"
-sudo wget https://github.com/opencontainers/runc/releases/download/v1.1.13/runc.arm64 &&\
+sudo wget -c --tries=0 --read-timeout=20 https://github.com/opencontainers/runc/releases/download/v1.1.13/runc.arm64 &&\
 sudo install -m 755 runc.arm64 /usr/local/sbin/runc &&\
 
 # INSTALLING CNI plugins
 echo "                         🐧 INSTALLING CNI plugins 🐧                         "
 echo "========================                             ========================"
-sudo wget https://github.com/containernetworking/plugins/releases/download/v1.5.1/cni-plugins-linux-arm-v1.5.1.tgz &&\
+sudo wget -c --tries=0 --read-timeout=20 https://github.com/containernetworking/plugins/releases/download/v1.5.1/cni-plugins-linux-arm-v1.5.1.tgz &&\
 sudo mkdir -p /opt/cni/bin &&\
 sudo tar Cxzvf /opt/cni/bin cni-plugins-linux-arm-v1.5.1.tgz &&\
 
@@ -53,7 +53,7 @@ sleep 4 &&\
 # INSTALLING nerdctl commandline utility[client]
 echo "                           🐧 INSTALLING NERDCTL 🐧                           "
 echo "========================                             ========================"
-sudo wget https://github.com/containerd/nerdctl/releases/download/v1.7.6/nerdctl-1.7.6-linux-arm64.tar.gz &&\
+sudo wget -c --tries=0 --read-timeout=20 https://github.com/containerd/nerdctl/releases/download/v1.7.6/nerdctl-1.7.6-linux-arm64.tar.gz &&\
 
 # Unpack the file with:
 sudo tar Cxzvf /usr/local/bin nerdctl-1.7.6-linux-arm64.tar.gz &&\
