@@ -62,6 +62,10 @@ sudo tar Cxzvf /usr/local/bin nerdctl-1.7.6-linux-arm64.tar.gz &&\
 sudo apt-get update &&\
 sudo apt-get install rootlesskit -y &&\
 
+# install yq
+sudo wget -c --tries=0 --read-timeout=20 https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq &&\
+sudo chmod +x /usr/local/bin/yq &&\
+
 # First, create a new systemd file with:
 cat <<EOF | sudo tee /etc/sysctl.d/99-rootless.conf
 kernel.unprivileged_userns_clone=1
