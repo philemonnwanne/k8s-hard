@@ -1,6 +1,8 @@
 # k8s-hard
 
-## Step by step instruction to deploy a Kubernetes cluster on Mac m1 systems using Vagrant and Vmware fusion
+## Step by step instruction to deploy a Kubernetes cluster on Mac m1 systems using KubeADM, Vagrant and Vmware fusion
+
+### Kubernetes Version: 1.30
 
 Clone the repo to your local PC
 ```bash
