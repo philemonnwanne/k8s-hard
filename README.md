@@ -7,7 +7,7 @@ Clone the repo to your local PC
 git clone https://github.com/philemonnwanne/k8s-hard.git
 ```
 
-cd into the cloned repo
+Navigate into the cloned repo
 ```sh
 cd k8s-hard
 ```
