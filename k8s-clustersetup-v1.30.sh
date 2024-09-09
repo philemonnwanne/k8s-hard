@@ -1,18 +1,14 @@
 #!/bin/bash
 set -e
 
-# Kubernetes Version: 1.30
-
-# Section: Swap configuration
-# Ensure swap is disabled temporarily
+# Section: Swap configuration (ensure swap is disabled temporarily)
 sudo swapoff -a &&\
 
 # Disable swap permanently; create backup and disable swap
 sudo sed -i.bak '/^[^#]/ s/\(^.*swap.*$\)/#\1/' /etc/fstab &&\
 
 # Section: Network configuration
-# To manually enable IPv4 packet forwarding
-# sysctl params required by setup, params persist across reboots
+# To manually enable IPv4 packet forwarding (sysctl params required by setup, params persist across reboots)
 cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
 net.ipv4.ip_forward = 1
 EOF
@@ -24,8 +20,9 @@ sudo sysctl --system &&\
 
 sleep 4 &&\
 
-# Step 1: Installing containerd
-echo "installing containerd"
+# Step 1: INSTALLING CONTAINERD
+echo "                         🐧 INSTALLING CONTAINERD 🐧                          "
+echo "========================                             ========================"
 sudo wget https://github.com/containerd/containerd/releases/download/v1.7.21/containerd-1.7.21-linux-arm64.tar.gz &&\
 
 sudo tar Cxzvf /usr/local containerd-1.7.21-linux-arm64.tar.gz &&\
@@ -39,29 +36,29 @@ sudo systemctl enable --now containerd &&\
 sleep 4 &&\
 
 # INSTALLING runc
-echo "installing runc"
+echo "                             🐧 INSTALLING RUNC 🐧                            "
+echo "========================                             ========================"
 sudo wget https://github.com/opencontainers/runc/releases/download/v1.1.13/runc.arm64 &&\
 sudo install -m 755 runc.arm64 /usr/local/sbin/runc &&\
 
 # INSTALLING CNI plugins
+echo "                         🐧 INSTALLING CNI plugins 🐧                         "
+echo "========================                             ========================"
 sudo wget https://github.com/containernetworking/plugins/releases/download/v1.5.1/cni-plugins-linux-arm-v1.5.1.tgz &&\
 sudo mkdir -p /opt/cni/bin &&\
 sudo tar Cxzvf /opt/cni/bin cni-plugins-linux-arm-v1.5.1.tgz &&\
 
-sleep 5 &&\
+sleep 4 &&\
 
 # INSTALLING nerdctl commandline utility[client]
-echo "Installing nerdctl"
+echo "                           🐧 INSTALLING NERDCTL 🐧                           "
+echo "========================                             ========================"
 sudo wget https://github.com/containerd/nerdctl/releases/download/v1.7.6/nerdctl-1.7.6-linux-arm64.tar.gz &&\
 
 # Unpack the file with:
 sudo tar Cxzvf /usr/local/bin nerdctl-1.7.6-linux-arm64.tar.gz &&\
 
-# Configure the system for rootless
-# Install the necessary dependencies
-# sudo apt-get install uidmap -y &&\
-
-# Next, install RootlessKit with:
+# Configure the system for rootless (install RootlessKit with)
 sudo apt-get update &&\
 sudo apt-get install rootlesskit -y &&\
 
@@ -80,16 +77,17 @@ cat <<EOF | sudo tee /etc/systemd/system/user@.service.d/delegate.conf
 Delegate=cpu cpuset io memory pids
 EOF
 
-sleep 5 &&\
+sleep 4 &&\
 
 sudo systemctl daemon-reload &&\
 # Delegating cpuset is recommended as well as cpu. Delegating cpuset requires systemd 244 or later.
 # After changing the systemd configuration, you need to re-login or reboot the host. Rebooting the host is recommended.
 
-/usr/local/bin/containerd-rootless-setuptool.sh install &&\
+containerd-rootless-setuptool.sh install &&\
 
-# Customizing containerd
-echo "# Customizing containerd"
+# CUSTOMIZING CONTAINERD
+echo "                         🐧 CUSTOMIZING CONTAINERD 🐧                         "
+echo "========================                             ========================"
 sudo mkdir -p /etc/containerd/ &&\
 
 # containerd config default > /etc/containerd/config.toml &&\
@@ -98,8 +96,9 @@ containerd config default | sudo tee  /etc/containerd/config.toml &&\
 # Configuring the systemd cgroup driver set SystemdCgroup = true 
 sudo sed -i.bak '/SystemdCgroup/s/false/true/' /etc/containerd/config.toml &&\
 
-# Installing kubeadm, kubelet and kubectl 
-echo "Installing kubeadm, kubelet and kubectl "
+# INSTALLING kubeadm, kubelet and kubectl: You will install these packages on all of your machines
+echo "                   🐧 INSTALLING KUBEADM/KUBELET/KUBECTL 🐧                   "
+echo "========================                             ========================"
 
 sudo apt-get update &&\
 
