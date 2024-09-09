@@ -66,11 +66,6 @@ sudo apt-get install rootlesskit -y &&\
 sudo wget -c --tries=0 --read-timeout=20 https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq &&\
 sudo chmod +x /usr/local/bin/yq &&\
 
-# First, create a new systemd file with:
-cat <<EOF | sudo tee /etc/sysctl.d/99-rootless.conf
-kernel.unprivileged_userns_clone=1
-EOF
-
 # Enabling CPU, CPUSET, and I/O delegation
 echo "Enabling CPU, CPUSET, and I/O delegation"
 # By default, a non-root user can only get memory controller and pids controller to be delegated.
@@ -94,11 +89,35 @@ echo "                         🐧 CUSTOMIZING CONTAINERD 🐧                 
 echo "========================                             ========================"
 sudo mkdir -p /etc/containerd/ &&\
 
-# containerd config default > /etc/containerd/config.toml &&\
-containerd config default | sudo tee  /etc/containerd/config.toml &&\
+# Define your desired sandbox image
+SANDBOX_IMAGE="registry.k8s.io/pause:3.10"
 
-# Configuring the systemd cgroup driver set SystemdCgroup = true 
-sudo sed -i.bak '/SystemdCgroup/s/false/true/' /etc/containerd/config.toml &&\
+# Check if containerd config file exists
+CONFIG_FILE="/etc/containerd/config.toml"
+
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "Config file not found, generating default containerd config."
+    containerd config default > $CONFIG_FILE
+fi
+
+# Backup the existing containerd config file
+cp "$CONFIG_FILE" "$CONFIG_FILE.bak" &&\
+
+# Modify SystemdCgroup to true in the containerd config file
+sed -i 's/^.*SystemdCgroup = false/SystemdCgroup = true/' "$CONFIG_FILE" &&\
+sed -i 's/^.*SystemdCgroup = "false"/SystemdCgroup = true/' "$CONFIG_FILE" &&\
+
+# Check if the configuration contains the [plugins."io.containerd.grpc.v1.cri"].sandbox_image entry
+if grep -q 'sandbox_image' $CONFIG_FILE; then
+    # Update the existing sandbox image line with the custom image
+    sed -i "s|sandbox_image = \".*\"|sandbox_image = \"$SANDBOX_IMAGE\"|" $CONFIG_FILE
+else
+    # Add the sandbox_image configuration if it's not present
+    sed -i '/\[plugins."io.containerd.grpc.v1.cri"\]/a\ \ \ \ sandbox_image = "'"$SANDBOX_IMAGE"'"' $CONFIG_FILE
+fi
+
+# Restart containerd to apply the changes
+sudo systemctl restart containerd &&\
 
 # INSTALLING kubeadm, kubelet and kubectl: You will install these packages on all of your machines
 echo "                   🐧 INSTALLING KUBEADM/KUBELET/KUBECTL 🐧                   "
