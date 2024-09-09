@@ -12,4 +12,4 @@ Navigate into the cloned repo
 cd k8s-hard
 ```
 
-Then run `vagrant up` and wait for the all nodes to be setup
+Then run `vagrant up` and wait for the all nodes to be provisioned
