@@ -87,6 +87,7 @@ containerd-rootless-setuptool.sh install &&\
 # CUSTOMIZING CONTAINERD
 echo "                         🐧 CUSTOMIZING CONTAINERD 🐧                         "
 echo "========================                             ========================"
+
 sudo mkdir -p /etc/containerd/ &&\
 
 # Define your desired sandbox image
@@ -141,7 +142,7 @@ sudo apt-get update &&\
 sudo apt-get install -y kubelet kubeadm kubectl &&\
 sudo apt-mark hold kubelet kubeadm kubectl &&\
 
-# Initializing kubeadm
+# INITIALIZING KUBEADM
 export IPADDR=$(ip addr show eth1 | grep -Po 'inet \K[\d.]+')
 export NODENAME=$(hostname -s)
 export POD_CIDR="10.244.0.0/16"
