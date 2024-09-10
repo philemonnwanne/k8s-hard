@@ -21,7 +21,7 @@ Vagrant.configure("2") do |config|
             vmf.memory = "2048"
             vmf.cpus = "2"
         end
-        master.vm.provision "shell", path: "clustersetup-k8sv1.30.sh"
+        master.vm.provision "shell", path: "clustersetup.sh"
     end
 
     # Define configuration for worker nodes
@@ -45,7 +45,7 @@ Vagrant.configure("2") do |config|
                 vmf.memory = "1048"
                 vmf.cpus = "1"
             end
-            worker.vm.provision "shell", path: "clustersetup-k8sv1.30.sh"
+            worker.vm.provision "shell", path: "clustersetup.sh"
         end
     end
 end
