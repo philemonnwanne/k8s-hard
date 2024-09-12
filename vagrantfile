@@ -21,7 +21,7 @@ Vagrant.configure("2") do |config|
             vmf.memory = "2048"
             vmf.cpus = "2"
         end
-        master.vm.provision "shell", path: "clustersetup.sh"
+        master.vm.provision "shell", path: "clustersetup.sh", privileged: false
     end
 
     # Define configuration for worker nodes
