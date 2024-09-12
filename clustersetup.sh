@@ -1,14 +1,24 @@
 #!/bin/bash
+
+# Exit on  error
 set -e
 
-# Section: Swap configuration (ensure swap is disabled temporarily)
+# Variables
+CONTAINERD_VERSION="1.7.21"  # adjust to latest stable version if needed
+
+# Define directories
+CONTAINERD_DIR="$HOME/.local/bin"
+CONTAINERD_CONFIG_DIR="$HOME/.config/containerd"
+XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-"$HOME/.local/run"}
+CONTAINERD_SYSTEMD_UNIT="$HOME/.config/systemd/user/containerd.service"
+
+# Ensure swap is disabled temporarily
 sudo swapoff -a &&\
 
 # Disable swap permanently; create backup and disable swap
 sudo sed -i.bak '/^[^#]/ s/\(^.*swap.*$\)/#\1/' /etc/fstab &&\
 
-# Section: Network configuration
-# To manually enable IPv4 packet forwarding (sysctl params required by setup, params persist across reboots)
+# Enable IPv4 packet forwarding (sysctl params required by setup, params persist across reboots)
 cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
 net.ipv4.ip_forward = 1
 EOF
@@ -20,35 +30,105 @@ sudo sysctl --system &&\
 
 sleep 4 &&\
 
-# Step 1: INSTALLING CONTAINERD
-echo "                         🐧 INSTALLING CONTAINERD 🐧                          "
-echo "========================                             ========================"
-sudo wget -c --tries=0 --read-timeout=20 https://github.com/containerd/containerd/releases/download/v1.7.21/containerd-1.7.21-linux-arm64.tar.gz &&\
-
-sudo tar Cxzvf /usr/local containerd-1.7.21-linux-arm64.tar.gz &&\
-
-# Start containerd as a systemd service
-sudo wget -c --tries=0 --read-timeout=20 https://raw.githubusercontent.com/containerd/containerd/main/containerd.service -P /usr/local/lib/systemd/system &&\
-
-sudo systemctl daemon-reload &&\
-sudo systemctl enable --now containerd &&\
-
-sleep 4 &&\
-
 # INSTALLING runc
 echo "                             🐧 INSTALLING RUNC 🐧                            "
-echo "========================                             ========================"
+
 sudo wget -c --tries=0 --read-timeout=20 https://github.com/opencontainers/runc/releases/download/v1.1.13/runc.arm64 &&\
 sudo install -m 755 runc.arm64 /usr/local/sbin/runc &&\
 
 # INSTALLING CNI plugins
 echo "                         🐧 INSTALLING CNI plugins 🐧                         "
-echo "========================                             ========================"
+
 sudo wget -c --tries=0 --read-timeout=20 https://github.com/containernetworking/plugins/releases/download/v1.5.1/cni-plugins-linux-arm-v1.5.1.tgz &&\
 sudo mkdir -p /opt/cni/bin &&\
 sudo tar Cxzvf /opt/cni/bin cni-plugins-linux-arm-v1.5.1.tgz &&\
 
 sleep 4 &&\
+
+# INSTALLING CONTAINERD
+echo "                         🐧 INSTALLING CONTAINERD 🐧                          "
+
+# Install dependencies
+install_dependencies() {
+    echo "Installing dependencies..."
+    sudo apt-get update
+    sudo apt-get install -y btrfs-progs uidmap slirp4netns fuse-overlayfs
+}
+
+# Download and install containerd
+install_containerd() {
+    echo "Installing containerd..."
+    sudo wget -c --tries=0 --read-timeout=20 https://github.com/containerd/containerd/releases/download/v$CONTAINERD_VERSION/containerd-$CONTAINERD_VERSION-linux-arm64.tar.gz &&\
+    sudo tar Cxzvf /usr/local containerd-$CONTAINERD_VERSION-linux-arm64.tar.gz
+    mkdir -p "$CONTAINERD_CONFIG_DIR"
+
+}
+
+# Set up containerd configuration
+setup_containerd_config() {
+    echo "Setting up containerd config..."
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo "Config file not found, generating default containerd config."
+        containerd config default | sudo tee "$CONTAINERD_CONFIG_DIR/config.toml"
+    fi
+    # Modify the configuration file to enable rootless mode
+    sed -i '/\[plugins\."io.containerd.grpc.v1.cri"\.containerd.runtimes.runc.options\]/a \
+        SystemdCgroup = false' "$CONTAINERD_CONFIG_DIR/config.toml"
+}
+
+# Define desired sandbox image
+set_sandbox_image() {
+    SANDBOX_IMAGE="registry.k8s.io/pause:3.10"
+
+    # Check if the configuration contains the [plugins."io.containerd.grpc.v1.cri"].sandbox_image entry
+    if grep -q 'sandbox_image' "$CONTAINERD_CONFIG_DIR/config.toml"; then
+        # Update the existing sandbox image line with the custom image
+        sed -i "s|sandbox_image = \".*\"|sandbox_image = \"$SANDBOX_IMAGE\"|" "$CONTAINERD_CONFIG_DIR/config.toml"
+    else
+        # Add the sandbox_image configuration if it's not present
+        sed -i '/\[plugins."io.containerd.grpc.v1.cri"\]/a\ \ \ \ sandbox_image = "'"$SANDBOX_IMAGE"'"' "$CONTAINERD_CONFIG_DIR/config.toml"
+    fi
+}
+
+# Set up containerd as a systemd user service
+setup_systemd_service() {
+    echo "Setting up systemd service for containerd..."
+    sudo wget -c --tries=0 --read-timeout=20 https://raw.githubusercontent.com/containerd/containerd/main/containerd.service -P /usr/local/lib/systemd/system &&\
+    sudo systemctl daemon-reload &&\
+    sudo systemctl enable --now containerd &&\
+    sleep 4
+}
+
+# Add user to sub{uid,gid} if not already added
+setup_subuid_subgid() {
+    echo "Setting up subuid and subgid..."
+    if ! grep "^$(whoami):" /etc/subuid &>/dev/null; then
+        echo "$(whoami):100000:65536" | sudo tee -a /etc/subuid
+    fi
+    if ! grep "^$(whoami):" /etc/subgid &>/dev/null; then
+        echo "$(whoami):100000:65536" | sudo tee -a /etc/subgid
+    fi
+}
+
+# Set environment variables in shell profile
+set_environment_variables() {
+    echo "Setting environment variables..."
+    SHELL_PROFILE="$HOME/.bashrc"
+    if [[ "$SHELL" == */zsh ]]; then
+        SHELL_PROFILE="$HOME/.zshrc"
+    fi
+
+    cat <<EOF >> "$SHELL_PROFILE"
+
+# Rootless Containerd environment variables
+export PATH="$CONTAINERD_DIR:\$PATH"
+export XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR"
+export CONTAINERD_ROOTLESS="true"
+export CONTAINERD_NAMESPACE="k8s.io"
+EOF
+
+    source "$SHELL_PROFILE"
+}
 
 # INSTALLING nerdctl commandline utility[client]
 echo "                           🐧 INSTALLING NERDCTL 🐧                           "
@@ -58,71 +138,20 @@ sudo wget -c --tries=0 --read-timeout=20 https://github.com/containerd/nerdctl/r
 # Unpack the file with:
 sudo tar Cxzvf /usr/local/bin nerdctl-1.7.6-linux-arm64.tar.gz &&\
 
-# Configure the system for rootless (install RootlessKit with)
-sudo apt-get update &&\
-sudo apt-get install rootlesskit -y &&\
+# Start installation
+install_dependencies
+install_containerd
+setup_containerd_config
+set_sandbox_image
+setup_systemd_service
+setup_subuid_subgid
+set_environment_variables
 
-# install yq
-sudo wget -c --tries=0 --read-timeout=20 https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq &&\
-sudo chmod +x /usr/local/bin/yq &&\
+echo "Rootless Containerd installation completed!"
 
-# Enabling CPU, CPUSET, and I/O delegation
-echo "Enabling CPU, CPUSET, and I/O delegation"
-# By default, a non-root user can only get memory controller and pids controller to be delegated.
-# To allow delegation of other controllers such as cpu, cpuset, and io, run the following commands:
-sudo mkdir -p /etc/systemd/system/user@.service.d &&\
-cat <<EOF | sudo tee /etc/systemd/system/user@.service.d/delegate.conf
-[Service]
-Delegate=cpu cpuset io memory pids
-EOF
-
-sleep 4 &&\
-
-sudo systemctl daemon-reload &&\
-# Delegating cpuset is recommended as well as cpu. Delegating cpuset requires systemd 244 or later.
-# After changing the systemd configuration, you need to re-login or reboot the host. Rebooting the host is recommended.
-
-containerd-rootless-setuptool.sh install &&\
-
-# CUSTOMIZING CONTAINERD
-echo "                         🐧 CUSTOMIZING CONTAINERD 🐧                         "
-echo "========================                             ========================"
-
-sudo mkdir -p /etc/containerd/ &&\
-
-# Define your desired sandbox image
-SANDBOX_IMAGE="registry.k8s.io/pause:3.10"
-
-# Check if containerd config file exists
-CONFIG_FILE="/etc/containerd/config.toml"
-
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "Config file not found, generating default containerd config."
-    containerd config default > $CONFIG_FILE
-fi
-
-# Backup the existing containerd config file
-cp "$CONFIG_FILE" "$CONFIG_FILE.bak" &&\
-
-# Modify SystemdCgroup to true in the containerd config file
-sed -i 's/^.*SystemdCgroup = false/SystemdCgroup = true/' "$CONFIG_FILE" &&\
-sed -i 's/^.*SystemdCgroup = "false"/SystemdCgroup = true/' "$CONFIG_FILE" &&\
-
-# Check if the configuration contains the [plugins."io.containerd.grpc.v1.cri"].sandbox_image entry
-if grep -q 'sandbox_image' $CONFIG_FILE; then
-    # Update the existing sandbox image line with the custom image
-    sed -i "s|sandbox_image = \".*\"|sandbox_image = \"$SANDBOX_IMAGE\"|" $CONFIG_FILE
-else
-    # Add the sandbox_image configuration if it's not present
-    sed -i '/\[plugins."io.containerd.grpc.v1.cri"\]/a\ \ \ \ sandbox_image = "'"$SANDBOX_IMAGE"'"' $CONFIG_FILE
-fi
-
-# Restart containerd to apply the changes
-sudo systemctl restart containerd &&\
 
 # INSTALLING kubeadm, kubelet and kubectl: You will install these packages on all of your machines
 echo "                   🐧 INSTALLING KUBEADM/KUBELET/KUBECTL 🐧                   "
-echo "========================                             ========================"
 
 sudo apt-get update &&\
 
@@ -152,4 +181,4 @@ sudo kubeadm init --apiserver-advertise-address=$IPADDR  --apiserver-cert-extra-
 # To start using your cluster, you need to run the following as a regular user:
 mkdir -p $HOME/.kube &&\
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config &&\
-sudo chown $(id -u):$(id -g) $HOME/.kube/config &&\
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
