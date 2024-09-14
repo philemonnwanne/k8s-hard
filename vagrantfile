@@ -6,7 +6,7 @@ Vagrant.configure("2") do |config|
         master.vm.box = "sloopstash/ubuntu-22-04"
         master.vm.box_version = "2.1.1"
         master.vm.network "forwarded_port", guest: 80, host: 8083
-        master.vm.hostname = "masterNode"
+        master.vm.hostname = "masternode"
         master.vm.box_check_update = false
         master.vm.network "private_network", ip: "192.168.201.20"
         # worker.vm.network "private_network", ip: "10.0.0.1"
@@ -22,6 +22,22 @@ Vagrant.configure("2") do |config|
             vmf.cpus = "2"
         end
         master.vm.provision "shell", path: "clustersetup.sh", privileged: false
+
+         # Trigger to start the worker node only after master is provisioned
+        master.trigger.after :provision do |t1|
+            # t1.warn = "Dumping database to /vagrant/outfile"
+            t1.run_remote = {inline: "kubeadm token create --print-join-command > /vagrant/outfile"}
+            # t1.info = "Provision first worker node"
+            # t1.run = {inline: "vagrant up workernode01"}
+            # t1.run = {inline: "vagrant up workernode01"}
+        end
+        # master.trigger.after :provision do
+        #     run "vagrant up workernode02"
+        # end
+        # master.trigger.after :provision do
+        #     trigger.info = "Provision second worker node"
+        #     run "vagrant up workernode02"
+        # end
     end
 
     # Define configuration for worker nodes
@@ -45,7 +61,7 @@ Vagrant.configure("2") do |config|
                 vmf.memory = "1048"
                 vmf.cpus = "1"
             end
-            worker.vm.provision "shell", path: "clustersetup.sh"
+            # worker.vm.provision "shell", path: "clustersetup.sh"
         end
     end
 end
